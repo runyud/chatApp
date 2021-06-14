@@ -15,13 +15,11 @@ const publicDirectoryPath = path.join(__dirname, '../public')
 
 app.use(express.static(publicDirectoryPath))
 
-let count = 0
+// let count = 0
 
 // server (emit) -> client (receive) - countUpdated
 // client (emit) -> server (receive) - increment
 
-let message = 'Welcome!'
-// server side
 io.on('connection', (socket) => {
     console.log('New WebSocket connection')
 
@@ -33,9 +31,9 @@ io.on('connection', (socket) => {
     //     // updates to every connection
     //     io.emit('countUpdated', count)
     // })
-    // options = {username, room} rest operator: ...
+    // options = {username, room} rest operator: ...options
     socket.on('join', (options, callback) => {
-        const {error, user} = addUser({ id: socket.id, ...options })
+        const { error, user } = addUser({ id: socket.id, ...options })
 
         if (error) {
             return callback(error)
@@ -46,24 +44,27 @@ io.on('connection', (socket) => {
         // socket.emit, io.emit, socket.broadcast.emit
         // io.to.emit: emits an event to everyone in a room
         // socket.broadcast.to.emit: sends to everyone except the client in a room
-
+        
         socket.emit('message', generateMessage('Admin', 'Welcome!'))
         socket.broadcast.to(user.room).emit('message', generateMessage('Admin', `${user.username} has joined!`))
+        io.to(user.room).emit('roomData', {
+            room: user.room,
+            users: getUsersInRoom(user.room)
+        })
 
         callback()
-
     })
 
     socket.on('sendMessage', (message, callback) => {
         const user = getUser(socket.id)
         const filter = new Filter()
 
-        if (filter.isProfane(message)){
-            return callback('Profanity not allowed')
+        if (filter.isProfane(message)) {
+            return callback('Profanity is not allowed!')
         }
 
         io.to(user.room).emit('message', generateMessage(user.username, message))
-        callback('Delivered')
+        callback()
     })
 
     socket.on('sendLocation', (coords, callback) => {
@@ -77,12 +78,14 @@ io.on('connection', (socket) => {
 
         if (user) {
             io.to(user.room).emit('message', generateMessage('Admin', `${user.username} has left!`))
+            io.to(user.room).emit('roomData', {
+                room: user.room,
+                users: getUsersInRoom(user.room)
+            })
         }
-        
     })
 })
 
 server.listen(port, () => {
     console.log(`Server is up on port ${port}!`)
 })
-
